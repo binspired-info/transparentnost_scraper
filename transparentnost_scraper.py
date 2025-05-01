@@ -1,0 +1,226 @@
+import os
+import sys
+# Ensure console handles Unicode
+sys.stdout.reconfigure(encoding='utf-8')
+sys.stderr.reconfigure(encoding='utf-8')
+import time
+import glob
+import logging
+import datetime
+import pandas as pd
+from tqdm import tqdm
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import traceback
+import requests
+
+from bq_handler import BQHandler
+from __init__ import PRODUCTION, DOWNLOAD_DIR, LOG_FILE
+
+# Slack webhook URL (set via env var in Cloud Run or locally)
+SLACK_WEBHOOK = os.getenv("SLACK_WEBHOOK_URL")
+
+def alert_slack(message: str):
+    if SLACK_WEBHOOK:
+        try:
+            requests.post(SLACK_WEBHOOK, json={"text": message}, timeout=5)
+        except Exception as e:
+            logging.error(f"Failed to send Slack alert: {e}")
+
+# Configure logging with UTF-8 handlers
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(LOG_FILE, encoding='utf-8'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+CLEAN_DIR = False
+HEADLESS = False
+
+class TransparentnostScraper():
+    def __init__(self):
+        self.already_downloaded_dates = self._check_for_downloaded_dates()
+        bq = BQHandler()
+        last = bq.get_last_date()
+        self.last_date_tbl = pd.to_datetime(last, format='%Y-%m-%d') if last else datetime.datetime(2024,1,1)
+
+    def _check_for_downloaded_dates(self):
+        downloaded_files = glob.glob(os.path.join(DOWNLOAD_DIR, '*.csv'))
+        if CLEAN_DIR:
+            for f in downloaded_files:
+                os.remove(f)
+            logger.info("Download directory cleaned.")
+            return []
+        dates = []
+        for file in downloaded_files:
+            parts = os.path.basename(file).split('_')
+            if len(parts) >= 2:
+                datestr = parts[1].replace('.csv','')
+                try:
+                    dates.append(datetime.datetime.strptime(datestr, "%Y_%m_%d"))
+                except:
+                    continue
+        dates.sort()
+        logger.info(f"Found {len(dates)} downloaded dates.")
+        return dates
+
+    def set_dates(self, date_interval=None):
+        if date_interval:
+            self.start_date, self.end_date = date_interval
+        else:
+            if not self.last_date_tbl or self.last_date_tbl.year < 2024:
+                self.start_date = datetime.datetime(2024,1,2)
+            else:
+                self.start_date = self.last_date_tbl + datetime.timedelta(days=1)
+            self.end_date = datetime.datetime.now()
+        logger.info(f"--- Scraping from {self.start_date.date()} to {self.end_date.date()} ---")
+
+    def webscrape(self):
+        def _date_filter_active(timeout=15):
+            end = time.time() + timeout
+            while time.time() < end:
+                try:
+                    text = driver.find_element(By.XPATH, base_xpath + 'content/main/isplate-details-component/section/div/div[2]/filters/div/div').text
+                    if 'Datum:' in text and current_date.strftime('%d.%m.%Y.') in text:
+                        return True
+                except:
+                    pass
+                time.sleep(1)
+            return False
+
+        def _is_weekend():
+            return current_date.weekday() >= 5
+
+        def _content_not_empty(timeout=10):
+            end = time.time() + timeout
+            xpath = base_xpath + '/content/main/isplate-details-component/section/div/div[1]/span'
+            while time.time() < end:
+                content = driver.find_element(By.XPATH, xpath).text
+                if content != 'Suma filtriranih stavki: 0,00':
+                    return True
+                time.sleep(1)
+            return False
+
+        def _download_success(filename, timeout=30):
+            end = time.time() + timeout
+            while time.time() < end:
+                path = os.path.join(DOWNLOAD_DIR, filename)
+                if os.path.exists(path) and not os.path.exists(path + '.crdownload'):
+                    return True
+                time.sleep(1)
+            return False
+
+        def _rename_csv():
+            original = os.path.join(DOWNLOAD_DIR, 'isplate.csv')
+            newname = f"isplate_{current_date.strftime('%Y_%m_%d')}.csv"
+            dest = os.path.join(DOWNLOAD_DIR, newname)
+            os.rename(original, dest)
+            return dest
+
+        service = Service(ChromeDriverManager().install())
+        options = webdriver.ChromeOptions()
+        options.add_experimental_option('prefs', {'download.default_directory': DOWNLOAD_DIR})
+        if HEADLESS:
+            options.add_argument('headless')
+        driver = webdriver.Chrome(service=service, options=options)
+        driver.get("https://transparentnost.zagreb.hr/isplate/sc-isplate")
+        base_xpath = '/html/body/app-root/home-component/'
+        # Accept cookies
+        WebDriverWait(driver, 10).until(EC.element_to_be_clickable(
+            (By.XPATH, base_xpath + 'content/main/cookies/div/div[4]/div[4]/button')
+        )).click()
+
+        current_date = self.start_date
+        # Open filter panel
+        WebDriverWait(driver, 10).until(EC.element_to_be_clickable(
+            (By.XPATH, base_xpath+'content/main/isplate-details-component/section/div/div/filters/button')
+        )).click()
+        # Open date filter
+        WebDriverWait(driver, 10).until(EC.element_to_be_clickable(
+            (By.XPATH, base_xpath+'content/main/isplate-details-component/section/div/div/filters/div/div/div[3]/div[1]')
+        )).click()
+
+        while current_date <= self.end_date:
+            if self.already_downloaded_dates and current_date <= self.already_downloaded_dates[-1]:
+                logger.info(f"Skipping {current_date.date()} (already downloaded)")
+                current_date += datetime.timedelta(days=1)
+                continue
+            if _is_weekend():
+                logger.info(f"Skipping {current_date.date()} (weekend)")
+                current_date += datetime.timedelta(days=1)
+                continue
+
+            # Set date filter
+            filter_base = base_xpath + 'content/main/isplate-details-component/section/div/div/filters/div/div/div[3]/div[2]/div/filter-input/'
+            from_xpath = filter_base + 'filter-input-value-type[1]/filter-date-picker/div/input'
+            to_xpath   = filter_base + 'filter-input-value-type[2]/filter-date-picker/div/input'
+            elem_from = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, from_xpath)))
+            elem_to   = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, to_xpath)))
+            elem_from.clear(); elem_to.clear()
+            elem_from.send_keys(current_date.strftime('%d.%m.%Y.'))
+            elem_to.send_keys(current_date.strftime('%d.%m.%Y.'))
+            WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, filter_base+'button'))).click()
+
+            # Apply filter
+            if _date_filter_active():
+                if _content_not_empty():
+                    try:
+                        # Download CSV
+                        download_xpath = base_xpath+'content/main/isplate-details-component/section/div/div[2]/div'
+                        WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, download_xpath))).click()
+                        if _download_success('isplate.csv', 60):
+                            final_csv = _rename_csv()
+                            logger.info(f"Downloaded CSV: {final_csv}")
+                            # Load into BigQuery
+                            bq = BQHandler()
+                            try:
+                                bq.load_csv(final_csv, current_date.date())
+                                logger.info(f"Loaded into BigQuery: {final_csv}")
+                            except Exception as e:
+                                logger.error(f"BQ load error for {current_date.date()}: {e}")
+                                alert_slack(f":red_circle: BQ load failed for {current_date.date()}\n```{traceback.format_exc()}```")
+                                raise
+                    except Exception:
+                        logger.error(f"Error processing {current_date.date()}")
+                        alert_slack(f":red_circle: Scrape/download failed for {current_date.date()}\n```{traceback.format_exc()}```")
+                        raise
+                else:
+                    logger.info(f"No data for {current_date.date()}")
+            else:
+                logger.error(f"Filter activation failed for {current_date.date()}")
+                alert_slack(f":red_circle: Filter failed for {current_date.date()}")
+                raise Exception("Filter activation failed")
+
+            # Re-open filter for next iteration
+            WebDriverWait(driver, 10).until(EC.element_to_be_clickable(
+                (By.XPATH, base_xpath+'content/main/isplate-details-component/section/div/div/filters/button')
+            )).click()
+
+            current_date += datetime.timedelta(days=1)
+
+        driver.quit()
+        logger.info("Web scraping completed.")
+
+if __name__ == '__main__':
+    exe_start = datetime.datetime.now()
+    logger.info("Script started.")
+    try:
+        app = TransparentnostScraper()
+        app.set_dates()
+        app.webscrape()
+    except Exception:
+        tb = traceback.format_exc()
+        alert_slack(f":red_circle: Scraper failed:\n```{tb}```")
+        raise
+    else:
+        duration = datetime.datetime.now() - exe_start
+        logger.info(f"Completed in: {duration}")
+        alert_slack(f":white_check_mark: Completed in: {duration}")
