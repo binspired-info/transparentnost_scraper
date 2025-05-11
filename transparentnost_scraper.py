@@ -1,6 +1,6 @@
 import os
 import sys
-# Ensure console handles Unicode
+# Ensure console handles Unicode code
 sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
 import time
