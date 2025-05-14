@@ -44,6 +44,7 @@ logger = logging.getLogger(__name__)
 
 CLEAN_DIR = False
 HEADLESS = False
+print("--- Production mode:", PRODUCTION)
 
 class TransparentnostScraper():
     def __init__(self):
@@ -214,7 +215,11 @@ if __name__ == '__main__':
     logger.info("Script started.")
     try:
         app = TransparentnostScraper()
-        app.set_dates()
+        date_interval = None
+        if not PRODUCTION:
+            # For local testing, set a specific date range
+            date_interval = (datetime.datetime(2024, 1, 2), datetime.datetime(2024, 1, 3))
+        app.set_dates(date_interval=date_interval)
         app.webscrape()
     except Exception:
         tb = traceback.format_exc()

@@ -24,7 +24,7 @@ class BQHandler:
             f"SELECT MAX(datum) AS last_date "
             f"FROM `{PROJECT}.{DATASET}.{TABLE}`"
         ).result(), None)
-        return row.last_date or datetime.date(2024,1,1)
+        return row.last_date or datetime.date(2024, 1, 1)
 
     def delete_date(self, dt: datetime.date):
         job = self.client.query(
@@ -42,11 +42,12 @@ class BQHandler:
         # 1) Remove existing rows for dt
         self.delete_date(dt)
 
-        # 2) Load with explicit schema
+        # 2) Load with explicit schema and semicolon delimiter
         job_config = bigquery.LoadJobConfig(
             schema=self.table.schema,
             source_format=bigquery.SourceFormat.CSV,
             skip_leading_rows=1,
+            field_delimiter=';',                               # ← add this
             write_disposition=bigquery.WriteDisposition.WRITE_APPEND
         )
         with open(path, "rb") as f:
@@ -60,3 +61,13 @@ class BQHandler:
             dest = f"raw/{os.path.basename(path)}"
             blob = self.bucket.blob(dest)
             blob.upload_from_filename(path)
+
+
+if __name__ == "__main__":
+    bqh = BQHandler()
+    last_date = bqh.get_last_date()
+    print(f"Last date in BQ: {last_date}")
+
+    #test_csv_file = "C://Users//grand//OneDrive//ZagrebVIz//transparentnost_scraper//csvs//isplate_2024_01_02.csv"
+    
+    #bqh.load_csv(test_csv_file, datetime.date(2024, 1, 2))
