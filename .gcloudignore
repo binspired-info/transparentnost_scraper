@@ -1,0 +1,15 @@
+# Ignore Python virtual environments
+venv/
+# Ignore compiled/python cache
+__pycache__/
+*.pyc
+
+# Ignore local CSV data and DBs
+csvs/
+*.csv
+*.db
+*.log
+
+# You can still include other source files:
+!requirements.txt
+!*.py
