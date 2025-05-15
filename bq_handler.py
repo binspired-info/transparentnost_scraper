@@ -67,7 +67,5 @@ if __name__ == "__main__":
     bqh = BQHandler()
     last_date = bqh.get_last_date()
     print(f"Last date in BQ: {last_date}")
-
     #test_csv_file = "C://Users//grand//OneDrive//ZagrebVIz//transparentnost_scraper//csvs//isplate_2024_01_02.csv"
-    
     #bqh.load_csv(test_csv_file, datetime.date(2024, 1, 2))

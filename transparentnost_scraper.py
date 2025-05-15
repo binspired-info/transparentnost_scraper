@@ -8,18 +8,18 @@ import glob
 import logging
 import datetime
 import pandas as pd
-from tqdm import tqdm
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import traceback
 import requests
 
 from bq_handler import BQHandler
-from __init__ import PRODUCTION, DOWNLOAD_DIR, LOG_FILE
+from __init__ import PRODUCTION, DOWNLOAD_DIR, HEADLESS, LOG_FILE
+if not PRODUCTION:
+    from webdriver_manager.chrome import ChromeDriverManager
 
 # Slack webhook URL (set via env var in Cloud Run or locally)
 SLACK_WEBHOOK = os.getenv("SLACK_WEBHOOK_URL")
@@ -41,17 +41,24 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
-
 CLEAN_DIR = False
-HEADLESS = False
-print("--- Production mode:", PRODUCTION)
 
 class TransparentnostScraper():
     def __init__(self):
-        self.already_downloaded_dates = self._check_for_downloaded_dates()
-        bq = BQHandler()
-        last = bq.get_last_date()
-        self.last_date_tbl = pd.to_datetime(last, format='%Y-%m-%d') if last else datetime.datetime(2024,1,1)
+        """ --- Initial settings --- """
+        # Check for already downloaded dates
+        #self.already_downloaded_dates = self._check_for_downloaded_dates()
+        # Get the last date from BigQuery (a datetime.date)
+        last = BQHandler().get_last_date()
+        if last:
+            # Combine the date with midnight to get a Python datetime
+            self.last_date_tbl = datetime.datetime.combine(
+                last,
+                datetime.time(0, 0, 0)
+            )
+        else:
+            # Fallback start date
+            self.last_date_tbl = datetime.datetime(2024, 1, 1)
 
     def _check_for_downloaded_dates(self):
         downloaded_files = glob.glob(os.path.join(DOWNLOAD_DIR, '*.csv'))
@@ -75,12 +82,16 @@ class TransparentnostScraper():
 
     def set_dates(self, date_interval=None):
         if date_interval:
+            # date_interval contains two datetime.datetime objects
             self.start_date, self.end_date = date_interval
         else:
-            if not self.last_date_tbl or self.last_date_tbl.year < 2024:
-                self.start_date = datetime.datetime(2024,1,2)
+            # If our last loaded date is before 2024, start at Jan 2, 2024
+            if self.last_date_tbl.year < 2024:
+                self.start_date = datetime.datetime(2024, 1, 2)
             else:
+                # Next day after last_date_tbl
                 self.start_date = self.last_date_tbl + datetime.timedelta(days=1)
+            # Use current time as the end of the interval
             self.end_date = datetime.datetime.now()
         logger.info(f"--- Scraping from {self.start_date.date()} to {self.end_date.date()} ---")
 
@@ -123,17 +134,40 @@ class TransparentnostScraper():
             original = os.path.join(DOWNLOAD_DIR, 'isplate.csv')
             newname = f"isplate_{current_date.strftime('%Y_%m_%d')}.csv"
             dest = os.path.join(DOWNLOAD_DIR, newname)
+            if os.path.exists(dest):
+                # Remove the old file
+                os.remove(dest)
             os.rename(original, dest)
             return dest
 
-        service = Service(ChromeDriverManager().install())
-        options = webdriver.ChromeOptions()
-        options.add_experimental_option('prefs', {'download.default_directory': DOWNLOAD_DIR})
+        """ --- Settings --- """
+        if not PRODUCTION:
+            service = Service(ChromeDriverManager().install())
+            options = webdriver.ChromeOptions()
+        else:
+            service = Service('/usr/bin/chromedriver')
+            options = webdriver.ChromeOptions()
+            options.binary_location = '/usr/bin/chromium'
+
+        # 1) Set the download directory
+        options.add_experimental_option('prefs', {
+            'download.default_directory': DOWNLOAD_DIR
+        })
+
+        # 2) Required flags for headless Chrome in container environments
         if HEADLESS:
-            options.add_argument('headless')
+            options.add_argument('--headless=new')          # or '--headless' for older Chrome versions
+            options.add_argument('--no-sandbox')            # bypass OS security model
+            options.add_argument('--disable-dev-shm-usage') # overcome limited /dev/shm
+            options.add_argument('--disable-gpu')           # recommended for headless
+            options.add_argument('--remote-debugging-port=9222')
+
         driver = webdriver.Chrome(service=service, options=options)
         driver.get("https://transparentnost.zagreb.hr/isplate/sc-isplate")
         base_xpath = '/html/body/app-root/home-component/'
+
+        """ --- Start scraping --- """
+
         # Accept cookies
         WebDriverWait(driver, 10).until(EC.element_to_be_clickable(
             (By.XPATH, base_xpath + 'content/main/cookies/div/div[4]/div[4]/button')
@@ -150,10 +184,10 @@ class TransparentnostScraper():
         )).click()
 
         while current_date <= self.end_date:
-            if self.already_downloaded_dates and current_date <= self.already_downloaded_dates[-1]:
-                logger.info(f"Skipping {current_date.date()} (already downloaded)")
-                current_date += datetime.timedelta(days=1)
-                continue
+            # if self.already_downloaded_dates and current_date <= self.already_downloaded_dates[-1]:
+            #     logger.info(f"Skipping {current_date.date()} (already downloaded)")
+            #     current_date += datetime.timedelta(days=1)
+            #     continue
             if _is_weekend():
                 logger.info(f"Skipping {current_date.date()} (weekend)")
                 current_date += datetime.timedelta(days=1)
@@ -175,8 +209,10 @@ class TransparentnostScraper():
                 if _content_not_empty():
                     try:
                         # Download CSV
-                        download_xpath = base_xpath+'content/main/isplate-details-component/section/div/div[2]/div'
+                        time.sleep(2)  # Wait for the content to load
+                        download_xpath = base_xpath + 'content/main/isplate-details-component/section/div/div[2]/div'
                         WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, download_xpath))).click()
+                        
                         if _download_success('isplate.csv', 60):
                             final_csv = _rename_csv()
                             logger.info(f"Downloaded CSV: {final_csv}")
@@ -189,8 +225,12 @@ class TransparentnostScraper():
                                 logger.error(f"BQ load error for {current_date.date()}: {e}")
                                 alert_slack(f":red_circle: BQ load failed for {current_date.date()}\n```{traceback.format_exc()}```")
                                 raise
+                        else:
+                            logger.error(f"Download timeout for {current_date.date()}")
+                            alert_slack(f":red_circle: Download failed for {current_date.date()}")
+                            raise
                     except Exception:
-                        logger.error(f"Error processing {current_date.date()}")
+                        logger.error(f"Download activation failed for date: {current_date.date()}")
                         alert_slack(f":red_circle: Scrape/download failed for {current_date.date()}\n```{traceback.format_exc()}```")
                         raise
                 else:
@@ -218,7 +258,7 @@ if __name__ == '__main__':
         date_interval = None
         if not PRODUCTION:
             # For local testing, set a specific date range
-            date_interval = (datetime.datetime(2024, 1, 2), datetime.datetime(2024, 1, 3))
+            date_interval = (datetime.datetime(2024, 1, 5), datetime.datetime(2024, 1, 6))
         app.set_dates(date_interval=date_interval)
         app.webscrape()
     except Exception:
