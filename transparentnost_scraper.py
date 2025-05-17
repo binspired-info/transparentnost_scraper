@@ -4,6 +4,7 @@ import sys
 sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
 import time
+import pytz
 import glob
 import logging
 import datetime
@@ -42,6 +43,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 CLEAN_DIR = False
+tz = pytz.timezone('Europe/Zagreb')
 
 class TransparentnostScraper():
     def __init__(self):
@@ -52,13 +54,10 @@ class TransparentnostScraper():
         last = BQHandler().get_last_date()
         if last:
             # Combine the date with midnight to get a Python datetime
-            self.last_date_tbl = datetime.datetime.combine(
-                last,
-                datetime.time(0, 0, 0)
-            )
+            self.last_date_tbl = datetime.datetime.combine(last, datetime.time(0, 0, 0), tzinfo=tz)
         else:
             # Fallback start date
-            self.last_date_tbl = datetime.datetime(2024, 1, 1)
+            self.last_date_tbl = datetime.datetime(2024, 1, 1, tzinfo=tz)
 
     def _check_for_downloaded_dates(self):
         downloaded_files = glob.glob(os.path.join(DOWNLOAD_DIR, '*.csv'))
@@ -87,12 +86,16 @@ class TransparentnostScraper():
         else:
             # If our last loaded date is before 2024, start at Jan 2, 2024
             if self.last_date_tbl.year < 2024:
-                self.start_date = datetime.datetime(2024, 1, 2)
+                self.start_date = tz.localize(datetime.datetime(2024, 1, 2))
             else:
                 # Next day after last_date_tbl
-                self.start_date = self.last_date_tbl + datetime.timedelta(days=1)
+                dt = self.last_date_tbl + datetime.timedelta(days=1)
+                if dt.tzinfo is None:
+                    self.start_date = tz.localize(dt)
+                else:
+                    self.start_date = dt
             # Use current time as the end of the interval
-            self.end_date = datetime.datetime.now()
+            self.end_date = datetime.datetime.now(tz)
         logger.info(f"--- Scraping from {self.start_date.date()} to {self.end_date.date()} ---")
 
     def webscrape(self):
@@ -167,13 +170,12 @@ class TransparentnostScraper():
         base_xpath = '/html/body/app-root/home-component/'
 
         """ --- Start scraping --- """
+        current_date = self.start_date
 
         # Accept cookies
         WebDriverWait(driver, 10).until(EC.element_to_be_clickable(
             (By.XPATH, base_xpath + 'content/main/cookies/div/div[4]/div[4]/button')
         )).click()
-
-        current_date = self.start_date
         # Open filter panel
         WebDriverWait(driver, 10).until(EC.element_to_be_clickable(
             (By.XPATH, base_xpath+'content/main/isplate-details-component/section/div/div/filters/button')
@@ -184,10 +186,15 @@ class TransparentnostScraper():
         )).click()
 
         while current_date <= self.end_date:
+
+            logger.info(f"Processing date: {current_date.date()}. Weekday: {current_date.weekday()}")
+
+            # Puni neovisno o tome što je skinuto
             # if self.already_downloaded_dates and current_date <= self.already_downloaded_dates[-1]:
             #     logger.info(f"Skipping {current_date.date()} (already downloaded)")
             #     current_date += datetime.timedelta(days=1)
             #     continue
+            
             if _is_weekend():
                 logger.info(f"Skipping {current_date.date()} (weekend)")
                 current_date += datetime.timedelta(days=1)
@@ -209,7 +216,7 @@ class TransparentnostScraper():
                 if _content_not_empty():
                     try:
                         # Download CSV
-                        time.sleep(2)  # Wait for the content to load
+                        time.sleep(5)  # Wait for the content to load
                         download_xpath = base_xpath + 'content/main/isplate-details-component/section/div/div[2]/div'
                         WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, download_xpath))).click()
                         
@@ -251,7 +258,7 @@ class TransparentnostScraper():
         logger.info("Web scraping completed.")
 
 if __name__ == '__main__':
-    exe_start = datetime.datetime.now()
+    exe_start = datetime.datetime.now(tz)
     logger.info("Script started.")
     try:
         app = TransparentnostScraper()
@@ -266,6 +273,6 @@ if __name__ == '__main__':
         alert_slack(f":red_circle: Scraper failed:\n```{tb}```")
         raise
     else:
-        duration = datetime.datetime.now() - exe_start
+        duration = datetime.datetime.now(tz) - exe_start
         logger.info(f"Completed in: {duration}")
         alert_slack(f":white_check_mark: Completed in: {duration}")
