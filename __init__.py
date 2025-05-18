@@ -1,8 +1,7 @@
 import os
 
 # Determine production mode from environment (default: True in Cloud Run)
-PRODUCTION = True
-print(f"__init__: PRODUCTION mode {PRODUCTION}")
+PRODUCTION = False
 
 # Set download directory based on environment
 if not PRODUCTION:

@@ -6,3 +6,4 @@ requirements.txt
 .vscode/settings.json
 __pycache__/__init__.cpython-313.pyc
 __pycache__/bq_handler.cpython-313.pyc
+__pycache__/
