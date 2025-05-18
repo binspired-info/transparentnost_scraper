@@ -2,22 +2,16 @@
 import os
 import datetime
 from google.cloud import bigquery, storage
-
-# ─── CONFIG ─────────────────────────────────────────────────────────────────────────
-PROJECT    = "zagreb-viz"
-DATASET    = "transparentnost"
-TABLE      = "isplate_master"
-GCS_BUCKET = "zagreb-viz-raw-csvs"  # or None to skip archiving
-# ────────────────────────────────────────────────────────────────────────────────────
+from __init__ import PROJECT, DATASET, TABLE, CSV_BUCKET
 
 class BQHandler:
     def __init__(self):
         self.client = bigquery.Client(project=PROJECT)
         table_ref = self.client.dataset(DATASET).table(TABLE)
         self.table = self.client.get_table(table_ref)
-        if GCS_BUCKET:
+        if CSV_BUCKET:
             self.storage = storage.Client(project=PROJECT)
-            self.bucket  = self.storage.bucket(GCS_BUCKET)
+            self.bucket  = self.storage.bucket(CSV_BUCKET)
 
     def get_last_date(self) -> datetime.date:
         row = next(self.client.query(
@@ -57,11 +51,10 @@ class BQHandler:
         load_job.result()
 
         # 3) Archive raw CSV if desired
-        if GCS_BUCKET:
+        if CSV_BUCKET:
             dest = f"raw/{os.path.basename(path)}"
             blob = self.bucket.blob(dest)
             blob.upload_from_filename(path)
-
 
 if __name__ == "__main__":
     bqh = BQHandler()

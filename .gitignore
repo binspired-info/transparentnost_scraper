@@ -7,3 +7,5 @@ requirements.txt
 __pycache__/__init__.cpython-313.pyc
 __pycache__/bq_handler.cpython-313.pyc
 __pycache__/
+screenshots/
+transparentnost_scraper.log

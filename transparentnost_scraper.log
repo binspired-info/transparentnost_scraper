@@ -17,3 +17,125 @@
 2025-04-30 05:52:07,886 - INFO - Script started.
 2025-04-30 05:52:07,912 - INFO - Found 0 downloaded dates.
 2025-04-30 05:52:14,129 - INFO - Completed in: 0:00:06.243505
+2025-05-18 22:02:13,929 - INFO - --- Running in development mode.
+2025-05-18 22:02:17,023 - INFO - --- Scraping from dates 2024-03-27 to 2024-04-02 (6 days) ---
+2025-05-18 22:02:17,024 - INFO - ====== WebDriver manager ======
+2025-05-18 22:02:17,960 - INFO - Get LATEST chromedriver version for google-chrome
+2025-05-18 22:02:18,007 - INFO - Get LATEST chromedriver version for google-chrome
+2025-05-18 22:02:18,051 - INFO - Driver [C:\Users\grand\.wdm\drivers\chromedriver\win64\136.0.7103.94\chromedriver-win32/chromedriver.exe] found in cache
+2025-05-18 22:02:19,795 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220217_148554dd\01_after_open_nodate_1747598539.png
+2025-05-18 22:02:19,796 - INFO -  === Starting web scraping === 
+2025-05-18 22:02:22,297 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220217_148554dd\02_after_cookies_2024_03_27_1747598542.png
+2025-05-18 22:02:22,690 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220217_148554dd\03_after_filter_panel_2024_03_27_1747598542.png
+2025-05-18 22:02:22,955 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220217_148554dd\04_after_date_filter_2024_03_27_1747598542.png
+2025-05-18 22:02:22,955 - INFO - 1) Curr. date: 27.03.2024.| Wkday: Wednesday | Progress: 0/6
+2025-05-18 22:02:23,382 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220217_148554dd\05_after_set_date_2024_03_27_1747598543.png
+2025-05-18 22:02:25,517 - INFO - 2) Filter active: 'Datum:\nod 27.03.2024. do 27.03.2024.'
+2025-05-18 22:02:25,621 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220217_148554dd\06_after_filter_activated_2024_03_27_1747598545.png
+2025-05-18 22:02:25,642 - INFO - 3a) Table content loaded: '27.03.2024.' (checked 1 times)
+2025-05-18 22:02:25,744 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220217_148554dd\07_after_table_content_2024_03_27_1747598545.png
+2025-05-18 22:02:25,809 - INFO - 4) Download button clicked
+2025-05-18 22:02:25,925 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220217_148554dd\08_after_download_click_2024_03_27_1747598545.png
+2025-05-18 22:02:29,927 - INFO - 5) Download completed.
+2025-05-18 22:02:30,042 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220217_148554dd\09_after_download_success_2024_03_27_1747598549.png
+2025-05-18 22:02:30,160 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220217_148554dd\10_after_rename_csv_2024_03_27_1747598550.png
+2025-05-18 22:02:35,572 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220217_148554dd\11_bq_load_error_2024_03_27_1747598555.png
+2025-05-18 22:02:35,572 - ERROR - 6) BQ load error for 2024-03-27: 400 POST https://storage.googleapis.com/upload/storage/v1/b/c:%5CUsers%5Cgrand%5COneDrive%5CZagrebVIz%5Ctransparentnost_scraper%5Ccsvs/o?uploadType=multipart: {
+  "error": {
+    "code": 400,
+    "message": "Invalid bucket name: 'c:\\Users\\grand\\OneDrive\\ZagrebVIz\\transparentnost_scraper\\csvs'",
+    "errors": [
+      {
+        "message": "Invalid bucket name: 'c:\\Users\\grand\\OneDrive\\ZagrebVIz\\transparentnost_scraper\\csvs'",
+        "domain": "global",
+        "reason": "invalid"
+      }
+    ]
+  }
+}
+: ('Request failed with status code', 400, 'Expected one of', <HTTPStatus.OK: 200>)
+2025-05-18 22:06:38,885 - INFO - --- Running in development mode.
+2025-05-18 22:06:41,854 - INFO - --- Scraping from dates 2024-03-27 to 2024-04-02 (6 days) ---
+2025-05-18 22:06:41,855 - INFO - ====== WebDriver manager ======
+2025-05-18 22:06:42,781 - INFO - Get LATEST chromedriver version for google-chrome
+2025-05-18 22:06:42,846 - INFO - Get LATEST chromedriver version for google-chrome
+2025-05-18 22:06:42,890 - INFO - Driver [C:\Users\grand\.wdm\drivers\chromedriver\win64\136.0.7103.94\chromedriver-win32/chromedriver.exe] found in cache
+2025-05-18 22:06:44,583 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\01_after_open_nodate_1747598804.png
+2025-05-18 22:06:44,584 - INFO -  === Starting web scraping === 
+2025-05-18 22:06:47,021 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\02_after_cookies_2024_03_27_1747598806.png
+2025-05-18 22:06:47,437 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\03_after_filter_panel_2024_03_27_1747598807.png
+2025-05-18 22:06:47,711 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\04_after_date_filter_2024_03_27_1747598807.png
+2025-05-18 22:06:47,711 - INFO - 1) Curr. date: 27.03.2024.| Wkday: Wednesday | Progress: 0/6
+2025-05-18 22:06:48,168 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\05_after_set_date_2024_03_27_1747598807.png
+2025-05-18 22:06:49,297 - INFO - 2) Filter active: 'Datum:\nod 27.03.2024. do 27.03.2024.'
+2025-05-18 22:06:49,401 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\06_after_filter_activated_2024_03_27_1747598809.png
+2025-05-18 22:06:49,421 - INFO - 3a) Table content loaded: '27.03.2024.' (checked 1 times)
+2025-05-18 22:06:49,510 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\07_after_table_content_2024_03_27_1747598809.png
+2025-05-18 22:06:49,572 - INFO - 4) Download button clicked
+2025-05-18 22:06:49,694 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\08_after_download_click_2024_03_27_1747598809.png
+2025-05-18 22:06:53,696 - INFO - 5) Download completed.
+2025-05-18 22:06:53,798 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\09_after_download_success_2024_03_27_1747598813.png
+2025-05-18 22:06:53,910 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\10_after_rename_csv_2024_03_27_1747598813.png
+2025-05-18 22:07:02,052 - INFO - 6) Loaded into BigQuery: isplate_2024_03_27.csv
+2025-05-18 22:07:02,272 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\11_after_reopen_filter_2024_03_27_1747598822.png
+2025-05-18 22:07:02,273 - INFO - 1) Curr. date: 28.03.2024.| Wkday: Thursday | Progress: 1/6
+2025-05-18 22:07:02,623 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\12_after_set_date_2024_03_28_1747598822.png
+2025-05-18 22:07:02,739 - INFO - 2) Filter active: 'Datum:\nod 28.03.2024. do 28.03.2024.'
+2025-05-18 22:07:02,840 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\13_after_filter_activated_2024_03_28_1747598822.png
+2025-05-18 22:07:03,895 - INFO - 3a) Table content loaded: '28.03.2024.' (checked 2 times)
+2025-05-18 22:07:04,006 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\14_after_table_content_2024_03_28_1747598823.png
+2025-05-18 22:07:04,063 - INFO - 4) Download button clicked
+2025-05-18 22:07:04,191 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\15_after_download_click_2024_03_28_1747598824.png
+2025-05-18 22:07:06,192 - INFO - 5) Download completed.
+2025-05-18 22:07:06,290 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\16_after_download_success_2024_03_28_1747598826.png
+2025-05-18 22:07:06,381 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\17_after_rename_csv_2024_03_28_1747598826.png
+2025-05-18 22:07:11,742 - INFO - 6) Loaded into BigQuery: isplate_2024_03_28.csv
+2025-05-18 22:07:12,026 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\18_after_reopen_filter_2024_03_28_1747598831.png
+2025-05-18 22:07:12,026 - INFO - 1) Curr. date: 29.03.2024.| Wkday: Friday | Progress: 2/6
+2025-05-18 22:07:12,469 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\19_after_set_date_2024_03_29_1747598832.png
+2025-05-18 22:07:12,609 - INFO - 2) Filter active: 'Datum:\nod 29.03.2024. do 29.03.2024.'
+2025-05-18 22:07:12,733 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\20_after_filter_activated_2024_03_29_1747598832.png
+2025-05-18 22:07:43,437 - INFO - 3a) No data for 29.03.2024., likely weekend/holiday.
+2025-05-18 22:07:43,516 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\21_content_not_updated_2024_03_29_1747598863.png
+2025-05-18 22:07:43,516 - ERROR - 3a) No data or content not updated for 2024-03-29
+2025-05-18 22:07:43,706 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\22_after_reopen_filter_2024_03_29_1747598863.png
+2025-05-18 22:07:43,706 - INFO - 1) Curr. date: 30.03.2024.| Wkday: Saturday | Progress: 3/6
+2025-05-18 22:07:43,999 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\23_after_set_date_2024_03_30_1747598863.png
+2025-05-18 22:07:44,109 - INFO - 2) Filter active: 'Datum:\nod 30.03.2024. do 30.03.2024.'
+2025-05-18 22:07:44,214 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\24_after_filter_activated_2024_03_30_1747598864.png
+2025-05-18 22:08:14,944 - INFO - 3a) No data for 30.03.2024., likely weekend/holiday.
+2025-05-18 22:08:15,024 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\25_content_not_updated_2024_03_30_1747598894.png
+2025-05-18 22:08:15,024 - ERROR - 3a) No data or content not updated for 2024-03-30
+2025-05-18 22:08:15,204 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\26_after_reopen_filter_2024_03_30_1747598895.png
+2025-05-18 22:08:15,204 - INFO - 1) Curr. date: 31.03.2024.| Wkday: Sunday | Progress: 4/6
+2025-05-18 22:08:15,512 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\27_after_set_date_2024_03_31_1747598895.png
+2025-05-18 22:08:15,631 - INFO - 2) Filter active: 'Datum:\nod 31.03.2024. do 31.03.2024.'
+2025-05-18 22:08:15,725 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\28_after_filter_activated_2024_03_31_1747598895.png
+2025-05-18 22:08:46,550 - INFO - 3a) No data for 31.03.2024., likely weekend/holiday.
+2025-05-18 22:08:46,682 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\29_content_not_updated_2024_03_31_1747598926.png
+2025-05-18 22:08:46,683 - ERROR - 3a) No data or content not updated for 2024-03-31
+2025-05-18 22:08:46,904 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\30_after_reopen_filter_2024_03_31_1747598926.png
+2025-05-18 22:08:46,905 - INFO - 1) Curr. date: 01.04.2024.| Wkday: Monday | Progress: 5/6
+2025-05-18 22:08:47,220 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\31_after_set_date_2024_04_01_1747598927.png
+2025-05-18 22:08:47,324 - INFO - 2) Filter active: 'Datum:\nod 01.04.2024. do 01.04.2024.'
+2025-05-18 22:08:47,453 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\32_after_filter_activated_2024_04_01_1747598927.png
+2025-05-18 22:09:18,286 - INFO - 3a) No data for 01.04.2024., likely weekend/holiday.
+2025-05-18 22:09:18,369 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\33_content_not_updated_2024_04_01_1747598958.png
+2025-05-18 22:09:18,369 - ERROR - 3a) No data or content not updated for 2024-04-01
+2025-05-18 22:09:18,569 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\34_after_reopen_filter_2024_04_01_1747598958.png
+2025-05-18 22:09:18,569 - INFO - 1) Curr. date: 02.04.2024.| Wkday: Tuesday | Progress: 6/6
+2025-05-18 22:09:18,860 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\35_after_set_date_2024_04_02_1747598958.png
+2025-05-18 22:09:18,959 - INFO - 2) Filter active: 'Datum:\nod 02.04.2024. do 02.04.2024.'
+2025-05-18 22:09:19,093 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\36_after_filter_activated_2024_04_02_1747598958.png
+2025-05-18 22:09:20,154 - INFO - 3a) Table content loaded: '02.04.2024.' (checked 2 times)
+2025-05-18 22:09:20,258 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\37_after_table_content_2024_04_02_1747598960.png
+2025-05-18 22:09:20,355 - INFO - 4) Download button clicked
+2025-05-18 22:09:20,495 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\38_after_download_click_2024_04_02_1747598960.png
+2025-05-18 22:09:22,497 - INFO - 5) Download completed.
+2025-05-18 22:09:22,617 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\39_after_download_success_2024_04_02_1747598962.png
+2025-05-18 22:09:22,723 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\40_after_rename_csv_2024_04_02_1747598962.png
+2025-05-18 22:09:28,667 - INFO - 6) Loaded into BigQuery: isplate_2024_04_02.csv
+2025-05-18 22:09:28,906 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\41_after_reopen_filter_2024_04_02_1747598968.png
+2025-05-18 22:09:29,046 - INFO - Snapshot saved: c:\Users\grand\OneDrive\ZagrebVIz\transparentnost_scraper\screenshots\20250518_220641\42_final_nodate_1747598968.png
+2025-05-18 22:09:31,185 - INFO - --- Web scraping completed! ---
+2025-05-18 22:09:31,185 - INFO - Execution completed in: 0:02:52.300204

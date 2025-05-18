@@ -1,0 +1,20 @@
+gcloud run deploy transparentnost-scraper \
+  --image gcr.io/zagreb-viz/transparentnost-scraper \
+  --platform managed \
+  --region europe-west1 \
+  --allow-unauthenticated \
+  --set-env-vars \
+    PRODUCTION="true",\
+    DOWNLOAD_DIR="/tmp/downloads",\
+    LOG_DIR="/tmp/downloads",\
+    SLACK_WEBHOOK_URL="https://hooks.slack.com/services/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",\
+    GCS_BUCKET="zagreb-viz-raw-csvs"
+
+
+TO CREATE AND RUN NEW GCLOUD JOB:
+
+gcloud builds submit --tag gcr.io/zagreb-viz/transparentnost-scraper
+
+gcloud run jobs update transparentnost-job --image gcr.io/zagreb-viz/transparentnost-scraper --region europe-west1
+
+gcloud run jobs execute transparentnost-job --region europe-west1
