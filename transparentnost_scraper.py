@@ -16,7 +16,6 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException
-
 from bq_handler import BQHandler
 
 """ --- Configuration --- """
@@ -36,9 +35,10 @@ if not PRODUCTION:
     from webdriver_manager.chrome import ChromeDriverManager
 else:
     # Cloud Run: download into /tmp (ephemeral storage)
-    DOWNLOAD_DIR = "/tmp/csvs"
+    DOWNLOAD_DIR = "/tmp/downloads"
     if SNAPSHOTS:
         SNAPSHOT_DIR = "/tmp/screenshots"
+    LOG_FILE = "/tmp/transparentnost_scraper.log"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 if SNAPSHOTS:
     os.makedirs(SNAPSHOT_DIR, exist_ok=True)
