@@ -2,7 +2,13 @@
 import os
 import datetime
 from google.cloud import bigquery, storage
-from __init__ import PROJECT, DATASET, TABLE, CSV_BUCKET
+
+# ─── CONFIG ─────────────────────────────────────────────────────────────────────────
+PROJECT    = "zagreb-viz"
+DATASET    = "transparentnost"
+TABLE      = "isplate_master"
+CSV_BUCKET = "zagreb-viz-raw-csvs"  # or None to skip archiving
+# ────────────────────────────────────────────────────────────────────────────────────
 
 class BQHandler:
     def __init__(self):

@@ -18,10 +18,32 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException
 
 from bq_handler import BQHandler
-from __init__ import PRODUCTION, DOWNLOAD_DIR, HEADLESS, LOG_FILE, SNAPSHOT_DIR
-if not PRODUCTION:
-    from webdriver_manager.chrome import ChromeDriverManager
 
+""" --- Configuration --- """
+# Determine production mode from environment (default: True in Cloud Run)
+PRODUCTION = True
+SNAPSHOTS = False
+HEADLESS = not PRODUCTION
+# Set download directory based on environment
+if not PRODUCTION:
+    # Local development: download into your OneDrive csvs folder
+    MAIN_DIR = os.path.dirname(os.path.abspath(__file__))
+    DOWNLOAD_DIR = os.path.join(MAIN_DIR, "csvs")
+    if SNAPSHOTS:
+        SNAPSHOT_DIR = os.path.join(MAIN_DIR, "screenshots")
+    LOG_FILE = os.path.join(MAIN_DIR, "transparentnost_scraper.log")
+    CLEAN_DIR = False
+    from webdriver_manager.chrome import ChromeDriverManager
+else:
+    # Cloud Run: download into /tmp (ephemeral storage)
+    DOWNLOAD_DIR = "/tmp/csvs"
+    if SNAPSHOTS:
+        SNAPSHOT_DIR = "/tmp/screenshots"
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+if SNAPSHOTS:
+    os.makedirs(SNAPSHOT_DIR, exist_ok=True)
+
+""" --- Slack alerting --- """
 # Slack webhook URL (set via env var in Cloud Run or locally)
 SLACK_WEBHOOK = os.getenv("SLACK_WEBHOOK_URL")
 def alert_slack(message: str):
@@ -31,6 +53,7 @@ def alert_slack(message: str):
         except Exception as e:
             logging.error(f"Failed to send Slack alert: {e}")
 
+""" --- Logging setup --- """
 # Configure logging with UTF-8 handlers
 logging.basicConfig(
     level=logging.INFO,
@@ -41,7 +64,8 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
-CLEAN_DIR = False
+
+""" --- Timezone setup --- """
 tz = pytz.timezone('Europe/Zagreb')
 
 class TransparentnostScraper():
@@ -59,24 +83,28 @@ class TransparentnostScraper():
             self.last_date_tbl = datetime.datetime(2024, 1, 1, tzinfo=tz)
 
         # Create a unique subdirectory for each run (always local)
-        run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.run_id = run_id  # Save for path
-        self.screenshot_dir = os.path.join(SNAPSHOT_DIR, run_id)
-        os.makedirs(self.screenshot_dir, exist_ok=True)
-        self.snapshot_counter = 1
+        if SNAPSHOTS:
+            run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            self.run_id = run_id  # Save for path
+            self.screenshot_dir = os.path.join(SNAPSHOT_DIR, run_id)
+            os.makedirs(self.screenshot_dir, exist_ok=True)
+            self.snapshot_counter = 1
 
     def _take_snapshot(self, driver, label, current_date=None):
         """Take a screenshot with a numerated label and optional date. Always save locally."""
         time.sleep(0.5)
-        date_str = current_date.strftime('%Y_%m_%d') if current_date else "nodate"
-        fname = f"{self.snapshot_counter:02d}_{label}_{date_str}_{int(time.time())}.png"
-        local_path = os.path.join(self.screenshot_dir, fname)
-        try:
-            driver.save_screenshot(local_path)
-            logger.info(f"Snapshot saved: {local_path}")
-        except Exception as e:
-            logger.error(f"Failed to save snapshot: {e}")
-        self.snapshot_counter += 1
+        if SNAPSHOTS:
+            date_str = current_date.strftime('%Y_%m_%d') if current_date else "nodate"
+            fname = f"{self.snapshot_counter:02d}_{label}_{date_str}_{int(time.time())}.png"
+            local_path = os.path.join(self.screenshot_dir, fname)
+            try:
+                driver.save_screenshot(local_path)
+                logger.info(f"Snapshot saved: {local_path}")
+            except Exception as e:
+                logger.error(f"Failed to save snapshot: {e}")
+            self.snapshot_counter += 1
+        else:
+            pass
 
     def _check_for_downloaded_dates(self):
         downloaded_files = glob.glob(os.path.join(DOWNLOAD_DIR, '*.csv'))
@@ -252,6 +280,7 @@ class TransparentnostScraper():
             options.add_argument('--disable-dev-shm-usage') # overcome limited /dev/shm
             options.add_argument('--disable-gpu')           # recommended for headless
             options.add_argument('--remote-debugging-port=9222')
+            #options.add_argument('--single-process')    # disable extensions
 
         driver = webdriver.Chrome(service=service, options=options)
         driver.get("https://transparentnost.zagreb.hr/isplate/sc-isplate")
