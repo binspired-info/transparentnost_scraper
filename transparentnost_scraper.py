@@ -11,8 +11,8 @@ import datetime
 import requests
 import traceback
 from selenium import webdriver
-from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException
@@ -20,25 +20,26 @@ from bq_handler import BQHandler
 
 """ --- Configuration --- """
 # Determine production mode from environment (default: True in Cloud Run)
-PRODUCTION = True
+PRODUCTION = os.getenv("PRODUCTION", "False").lower() == "true"
 SNAPSHOTS = False
 HEADLESS = not PRODUCTION
 # Set download directory based on environment
-if not PRODUCTION:
+if PRODUCTION:
+    # Cloud Run: download into /tmp (ephemeral storage)
+    DOWNLOAD_DIR = os.getenv("DOWNLOAD_DIR", "/tmp/downloads")
+    if SNAPSHOTS:
+        SNAPSHOT_DIR = "/tmp/screenshots"
+    #LOG_DIR = os.getenv("LOG_DIR", DOWNLOAD_DIR)
+    #LOG_FILE = os.path.join(DOWNLOAD_DIR, "transparentnost_scraper.log")
+else:
     # Local development: download into your OneDrive csvs folder
     MAIN_DIR = os.path.dirname(os.path.abspath(__file__))
     DOWNLOAD_DIR = os.path.join(MAIN_DIR, "csvs")
     if SNAPSHOTS:
         SNAPSHOT_DIR = os.path.join(MAIN_DIR, "screenshots")
-    LOG_FILE = os.path.join(MAIN_DIR, "transparentnost_scraper.log")
+    #LOG_FILE = os.path.join(MAIN_DIR, "logger", "transparentnost_scraper.log")
     CLEAN_DIR = False
-    from webdriver_manager.chrome import ChromeDriverManager
-else:
-    # Cloud Run: download into /tmp (ephemeral storage)
-    DOWNLOAD_DIR = "/tmp/downloads"
-    if SNAPSHOTS:
-        SNAPSHOT_DIR = "/tmp/screenshots"
-    LOG_FILE = "/tmp/transparentnost_scraper.log"
+    
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 if SNAPSHOTS:
     os.makedirs(SNAPSHOT_DIR, exist_ok=True)
@@ -54,15 +55,7 @@ def alert_slack(message: str):
             logging.error(f"Failed to send Slack alert: {e}")
 
 """ --- Logging setup --- """
-# Configure logging with UTF-8 handlers
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(LOG_FILE, encoding='utf-8'),
-        logging.StreamHandler()
-    ]
-)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 """ --- Timezone setup --- """
@@ -84,9 +77,8 @@ class TransparentnostScraper():
 
         # Create a unique subdirectory for each run (always local)
         if SNAPSHOTS:
-            run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            self.run_id = run_id  # Save for path
-            self.screenshot_dir = os.path.join(SNAPSHOT_DIR, run_id)
+            self.run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            self.screenshot_dir = os.path.join(SNAPSHOT_DIR, self.run_id)
             os.makedirs(self.screenshot_dir, exist_ok=True)
             self.snapshot_counter = 1
 
@@ -147,6 +139,40 @@ class TransparentnostScraper():
         logger.info(f"--- Scraping from dates {self.start_date.date()} to {self.end_date.date()} ({self.days_to_scrape} days) ---")
 
     def webscrape(self):
+
+        def _get_webdriver():
+            """ --- Settings --- """
+            if not PRODUCTION:
+                from webdriver_manager.chrome import ChromeDriverManager
+                service = Service(ChromeDriverManager().install())
+                options = webdriver.ChromeOptions()
+            else:
+                service = Service('/usr/bin/chromedriver')
+                options = webdriver.ChromeOptions()
+                options.binary_location = '/usr/bin/chromium'
+
+            # 1) Set the download directory
+            options.add_experimental_option('prefs', {'download.default_directory': DOWNLOAD_DIR})
+
+            # 2) Required flags for headless Chrome in container environments
+            if HEADLESS:
+                options.add_argument('--headless=new')          # or '--headless' for older Chrome versions
+                options.add_argument('--no-sandbox')            # bypass OS security model
+                options.add_argument('--disable-dev-shm-usage') # overcome limited /dev/shm
+                options.add_argument('--disable-gpu')           # recommended for headless
+                #options.add_argument('--remote-debugging-port=9222')
+                #options.add_argument('--single-process')    # disable extensions
+
+            try:
+                logger.info("Creating Chrome driver...")
+                driver = webdriver.Chrome(service=service, options=options)
+            except Exception as e:
+                logger.error(f"Failed to create Chrome driver: {e}")
+                raise
+            driver.get("https://transparentnost.zagreb.hr/isplate/sc-isplate")
+            logger.info(f"Driver setup complete. Current URL: {driver.current_url}")
+            return driver
+
 
         def _date_filter_activated(timeout=15):
             end = time.time() + timeout
@@ -261,38 +287,15 @@ class TransparentnostScraper():
             os.rename(original, dest)
             return dest, newname
 
-        """ --- Settings --- """
-        if not PRODUCTION:
-            service = Service(ChromeDriverManager().install())
-            options = webdriver.ChromeOptions()
-        else:
-            service = Service('/usr/bin/chromedriver')
-            options = webdriver.ChromeOptions()
-            options.binary_location = '/usr/bin/chromium'
 
-        # 1) Set the download directory
-        options.add_experimental_option('prefs', {'download.default_directory': DOWNLOAD_DIR})
-
-        # 2) Required flags for headless Chrome in container environments
-        if HEADLESS:
-            options.add_argument('--headless=new')          # or '--headless' for older Chrome versions
-            options.add_argument('--no-sandbox')            # bypass OS security model
-            options.add_argument('--disable-dev-shm-usage') # overcome limited /dev/shm
-            options.add_argument('--disable-gpu')           # recommended for headless
-            options.add_argument('--remote-debugging-port=9222')
-            #options.add_argument('--single-process')    # disable extensions
-
-        driver = webdriver.Chrome(service=service, options=options)
-        driver.get("https://transparentnost.zagreb.hr/isplate/sc-isplate")
-        base_xpath = '/html/body/app-root/home-component/'
-
-        self._take_snapshot(driver, "after_open", None)
-
-        logger.info(" === Starting web scraping === ")
+        driver = _get_webdriver()
         current_date = self.start_date
+        base_xpath = '/html/body/app-root/home-component/'
         days_processed = 0
         bq = BQHandler()
+        logger.info(" === Starting web scraping === ")
 
+        self._take_snapshot(driver, "after_open", None)
         # Accept cookies
         WebDriverWait(driver, 10).until(EC.element_to_be_clickable(
             (By.XPATH, base_xpath + 'content/main/cookies/div/div[4]/div[4]/button')
@@ -333,7 +336,6 @@ class TransparentnostScraper():
             elem_from.clear(); elem_to.clear()
             elem_from.send_keys(current_date.strftime('%d.%m.%Y.'))
             elem_to.send_keys(current_date.strftime('%d.%m.%Y.'))
-
             self._take_snapshot(driver, "after_set_date", current_date)
 
             if _date_filter_activated():
