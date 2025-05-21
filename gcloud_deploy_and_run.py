@@ -14,11 +14,20 @@ def main():
     # 1) Build & push the container image
     run_command("gcloud builds submit --tag gcr.io/zagreb-viz/transparentnost-scraper")
 
-    # 2) Update the Cloud Run job to use the new image
-    run_command("gcloud run jobs update transparentnost-job --image gcr.io/zagreb-viz/transparentnost-scraper --region europe-west1")
+    # 2) Update the Cloud Run job with proper configuration
+    run_command("""
+        gcloud run jobs update transparentnost-job \
+        --image gcr.io/zagreb-viz/transparentnost-scraper \
+        --region europe-west1 \
+        --set-env-vars "BUCKET_NAME=zagreb-viz-snapshots" \
+        --max-retries 0 \
+        --tasks 1 \
+        --task-timeout 3600 \
+        --execute-now
+    """)
 
-    # 3) Execute the job immediately
-    run_command("gcloud run jobs execute transparentnost-job --region europe-west1")
+    # 3) Run the Cloud Run job
+    run_command("""gcloud run jobs execute transparentnost-job --region europe-west1""")
 
     print("\n✅ All steps completed successfully.")
 

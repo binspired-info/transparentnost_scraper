@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 
 # Basic configuration
 PRODUCTION = os.getenv("PRODUCTION", "False").lower() == "true"
-SNAPSHOTS = False
-HEADLESS = not PRODUCTION
+SNAPSHOTS = True
+HEADLESS = PRODUCTION
 
 # Download directory setup
 if PRODUCTION:
@@ -38,6 +38,7 @@ class TransparentnostScraper():
         # Create unique run ID for this session
         if SNAPSHOTS:
             self.run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + "_" + str(uuid.uuid4())[:8]
+            # Vjerojatno ovdje faila i ne radi skripta
             self.snapshot_dir = os.path.join(SNAPSHOT_DIR, self.run_id)
             os.makedirs(self.snapshot_dir, exist_ok=True)
             self.snapshot_counter = 1

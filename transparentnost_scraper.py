@@ -21,25 +21,25 @@ from bq_handler import BQHandler
 """ --- Configuration --- """
 # Determine production mode from environment (default: True in Cloud Run)
 PRODUCTION = os.getenv("PRODUCTION", "False").lower() == "true"
-SNAPSHOTS = False
-HEADLESS = not PRODUCTION
+HEADLESS = PRODUCTION
+SNAPSHOTS = True
 # Set download directory based on environment
 if PRODUCTION:
     # Cloud Run: download into /tmp (ephemeral storage)
     DOWNLOAD_DIR = os.getenv("DOWNLOAD_DIR", "/tmp/downloads")
+    LOG_DIR = os.getenv("LOG_DIR", DOWNLOAD_DIR)
+    LOG_FILE = os.path.join(LOG_DIR, "transparentnost_scraper.log")
     if SNAPSHOTS:
-        SNAPSHOT_DIR = "/tmp/screenshots"
-    #LOG_DIR = os.getenv("LOG_DIR", DOWNLOAD_DIR)
-    #LOG_FILE = os.path.join(DOWNLOAD_DIR, "transparentnost_scraper.log")
+        SNAPSHOT_DIR = os.getenv("SNAPSHOT_DIR", "/tmp/screenshots")
 else:
     # Local development: download into your OneDrive csvs folder
     MAIN_DIR = os.path.dirname(os.path.abspath(__file__))
     DOWNLOAD_DIR = os.path.join(MAIN_DIR, "csvs")
+    LOG_DIR = os.path.join(MAIN_DIR, "logger")
+    LOG_FILE = os.path.join(LOG_DIR, "transparentnost_scraper.log")
     if SNAPSHOTS:
         SNAPSHOT_DIR = os.path.join(MAIN_DIR, "screenshots")
-    #LOG_FILE = os.path.join(MAIN_DIR, "logger", "transparentnost_scraper.log")
     CLEAN_DIR = False
-    
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 if SNAPSHOTS:
     os.makedirs(SNAPSHOT_DIR, exist_ok=True)
@@ -55,7 +55,14 @@ def alert_slack(message: str):
             logging.error(f"Failed to send Slack alert: {e}")
 
 """ --- Logging setup --- """
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(LOG_FILE, encoding='utf-8'),
+            logging.StreamHandler()
+        ]
+    )
 logger = logging.getLogger(__name__)
 
 """ --- Timezone setup --- """
@@ -160,8 +167,8 @@ class TransparentnostScraper():
                 options.add_argument('--no-sandbox')            # bypass OS security model
                 options.add_argument('--disable-dev-shm-usage') # overcome limited /dev/shm
                 options.add_argument('--disable-gpu')           # recommended for headless
-                #options.add_argument('--remote-debugging-port=9222')
-                #options.add_argument('--single-process')    # disable extensions
+                options.add_argument('--remote-debugging-port=9222')
+                options.add_argument('--single-process')    # disable extensions
 
             try:
                 logger.info("Creating Chrome driver...")
