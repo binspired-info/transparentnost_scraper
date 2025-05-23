@@ -4,7 +4,6 @@ import sys
 sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
 import time
-import pytz
 import glob
 import logging
 import datetime
@@ -22,7 +21,7 @@ from google.cloud import storage
 """ --- Configuration --- """
 PRODUCTION = os.getenv("PRODUCTION", "False").lower() == "true"
 HEADLESS = PRODUCTION
-SNAPSHOTS = True
+SNAPSHOTS = False
 # Set download directory based on environment
 if PRODUCTION:
     # Cloud Run: download into /tmp (ephemeral storage)
@@ -65,10 +64,11 @@ logging.basicConfig(
     )
 logger = logging.getLogger(__name__)
 
-""" --- Timezone setup --- """
-tz = pytz.timezone('Europe/Zagreb')
-
 class GCSHandler:
+    """Google Cloud Storage handler for uploading files.
+    Jedino se koristi za upload screenshot-ova stranice, ako se to želi (SNAPSHOTS=True).
+    """
+
     def __init__(self, bucket_name=None):
         self.bucket_name = bucket_name or os.getenv('OUTPUT_BUCKET', '').replace('gs://', '')
         self.client = storage.Client(project="zagreb-viz")
@@ -100,20 +100,15 @@ class TransparentnostScraper():
         #self.already_downloaded_dates = self._check_for_downloaded_dates()
         # Get the last date from BigQuery (a datetime.date)
         last = BQHandler().get_last_date()
-        if last: # Combine the date with midnight to get a Python datetime
-            self.last_date_tbl = datetime.datetime.combine(last, datetime.time(0, 0, 0), tzinfo=tz)
-        else: # Fallback start date
-            self.last_date_tbl = datetime.datetime(2024, 1, 1, tzinfo=tz)
+        self.last_date_tbl = last.date() if last else datetime.datetime(2024, 1, 1)
 
-        # Create a unique subdirectory for each run (always local)
-        if SNAPSHOTS:
+        if SNAPSHOTS: # Create a unique subdirectory for each run (always local)
             self.run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             self.snapshot_dir = os.path.join(SNAPSHOT_DIR, self.run_id)
             os.makedirs(self.snapshot_dir, exist_ok=True)
             self.snapshot_counter = 1
-        
-        if PRODUCTION:
-            self.gcs = GCSHandler()
+            if PRODUCTION:
+                self.gcs = GCSHandler()
     
     def upload_snapshots(self):
         """Upload all results to GCS."""
@@ -133,7 +128,6 @@ class TransparentnostScraper():
                 date_str = current_date.strftime('%Y_%m_%d') if current_date else "nodate"
                 fname = f"{self.snapshot_counter:02d}_{label}_{date_str}.png"
                 path = os.path.join(self.snapshot_dir, fname)
-                
                 driver.save_screenshot(path)
                 logger.info(f"Snapshot saved: {fname}")
                 self.snapshot_counter += 1
@@ -141,6 +135,7 @@ class TransparentnostScraper():
                 logger.error(f"Failed to save snapshot: {e}")
 
     def _check_for_downloaded_dates(self):
+        """Check for already downloaded dates in the download directory."""
         downloaded_files = glob.glob(os.path.join(DOWNLOAD_DIR, '*.csv'))
         if CLEAN_DIR:
             for f in downloaded_files:
@@ -161,27 +156,23 @@ class TransparentnostScraper():
         return dates
 
     def set_dates(self, date_interval=None):
+        """Set the date interval for scraping."""
         if date_interval:
             # date_interval contains two datetime.datetime objects
             self.start_date, self.end_date = date_interval
         else:
             # If our last loaded date is before 2024, start at Jan 2, 2024
             if self.last_date_tbl.year < 2024:
-                self.start_date = tz.localize(datetime.datetime(2024, 1, 2))
+                self.start_date = datetime.datetime(2024, 1, 2)
             else:
                 # Next day after last_date_tbl
-                dt = self.last_date_tbl + datetime.timedelta(days=1)
-                if dt.tzinfo is None:
-                    self.start_date = tz.localize(dt)
-                else:
-                    self.start_date = dt
+                self.start_date = self.last_date_tbl + datetime.timedelta(days=1)
             # Use current time as the end of the interval
-            self.end_date = datetime.datetime.now(tz)
+            self.end_date = datetime.datetime.now().date()
         self.days_to_scrape = (self.end_date - self.start_date).days
-        logger.info(f"--- Scraping from dates {self.start_date.date()} to {self.end_date.date()} ({self.days_to_scrape} days) ---")
+        logger.info(f"--- Scraping from dates {self.start_date} to {self.end_date} ({self.days_to_scrape} days) ---")
 
     def webscrape(self):
-
         def _get_webdriver():
             """ --- Settings --- """
             if not PRODUCTION:
@@ -238,28 +229,16 @@ class TransparentnostScraper():
             while time.time() < end:
                 try:
                     applied_filter_text = driver.find_element(By.XPATH, applied_filter_xpath).text
-                    if ('Datum:' in applied_filter_text) and (current_date.strftime('%d.%m.%Y.') in applied_filter_text):
+                    date_to_check = current_date.strftime('%d.%m.%Y.')
+                    if PRODUCTION:
+                        date_to_check = (current_date - datetime.timedelta(days=1)).strftime('%d.%m.%Y.')
+                    if ('Datum:' in applied_filter_text) and (date_to_check in applied_filter_text):
                         logger.info(f"2) Filter active: {repr(applied_filter_text)}")
                         return True
                 except:
                     pass
                 time.sleep(1)
             return False
-        
-        def _content_not_empty(timeout=10):
-            time.sleep(3) # Wait for the content to load
-            end = time.time() + timeout
-            content_xpath = base_xpath + '/content/main/isplate-details-component/section/div/div[1]/span'
-            loop_count = 0
-            while time.time() < end: # Wait for the content to load and check for 10 times before giving up
-                content = driver.find_element(By.XPATH, content_xpath).text
-                loop_count += 1
-                if content != 'Suma filtriranih stavki: 0,00':
-                    logger.info(f"3) Content: {content} (checked {loop_count} times)")
-                    return True
-                time.sleep(1)
-            logger.info(f"3) Content empty: {content} (checked {loop_count} times)")
-            return False # False if the content is empty
         
         def _wait_for_table_or_content_date(expected_date, timeout=30):
             """
@@ -338,7 +317,6 @@ class TransparentnostScraper():
             bq = BQHandler()
             logger.info(" === Starting web scraping === ")
 
-            self._take_snapshot(driver, "after_open", None)
             # Accept cookies
             WebDriverWait(driver, 10).until(EC.element_to_be_clickable(
                 (By.XPATH, base_xpath + 'content/main/cookies/div/div[4]/div[4]/button')
@@ -349,13 +327,11 @@ class TransparentnostScraper():
             WebDriverWait(driver, 10).until(EC.element_to_be_clickable(
                 (By.XPATH, base_xpath+'content/main/isplate-details-component/section/div/div/filters/button')
             )).click()
-            self._take_snapshot(driver, "after_filter_panel", current_date)
 
             # Open date filter
             WebDriverWait(driver, 10).until(EC.element_to_be_clickable(
                 (By.XPATH, base_xpath+'content/main/isplate-details-component/section/div/div/filters/div/div/div[3]/div[1]')
             )).click()
-            self._take_snapshot(driver, "after_date_filter", current_date)
 
             # Date filter paths
             filter_base = base_xpath + 'content/main/isplate-details-component/section/div/div/filters/div/div/div[3]/div[2]/div/filter-input/'
@@ -377,8 +353,11 @@ class TransparentnostScraper():
                 elem_from = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, from_xpath)))
                 elem_to   = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, to_xpath)))
                 elem_from.clear(); elem_to.clear()
-                elem_from.send_keys(current_date.strftime('%d.%m.%Y.'))
-                elem_to.send_keys(current_date.strftime('%d.%m.%Y.'))
+                date_to_insert = current_date.strftime('%d.%m.%Y.')
+                if PRODUCTION:
+                    date_to_insert = (current_date - datetime.timedelta(days=1)).strftime('%d.%m.%Y.')
+                elem_from.send_keys(date_to_insert)
+                elem_to.send_keys(date_to_insert)
                 self._take_snapshot(driver, "after_set_date", current_date)
 
                 if _date_filter_activated():
@@ -436,14 +415,13 @@ class TransparentnostScraper():
                 logger.info("--- Web scraping completed! ---")
 
 if __name__ == '__main__':
-    exe_start = datetime.datetime.now(tz)
+    exe_start = datetime.datetime.now()
     try:
         app = TransparentnostScraper()
-        #date_interval = None
-        date_interval = (datetime.datetime(2024, 3, 27), datetime.datetime(2024, 4, 2))
-        if not PRODUCTION:
-            # For local testing, set a specific date range
-            date_interval = (datetime.datetime(2024, 3, 27), datetime.datetime(2024, 4, 2))
+        if PRODUCTION:
+            date_interval = (datetime.datetime(2024, 3, 24), datetime.datetime(2024, 4, 3))
+        else:  # For local testing, set a specific date range
+            date_interval = (datetime.datetime(2024, 3, 27), datetime.datetime(2024, 3, 27))
         app.set_dates(date_interval=date_interval)
         app.webscrape()
     except Exception:
@@ -451,6 +429,6 @@ if __name__ == '__main__':
         alert_slack(f":red_circle: Scraper failed:\n```{tb}```")
         raise
     else:
-        duration = datetime.datetime.now(tz) - exe_start
+        duration = datetime.datetime.now() - exe_start
         logger.info(f"Execution completed in: {duration}")
         alert_slack(f":white_check_mark: Completed in: {duration}")

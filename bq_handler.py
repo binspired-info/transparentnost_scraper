@@ -24,7 +24,7 @@ class BQHandler:
             f"SELECT MAX(datum) AS last_date "
             f"FROM `{PROJECT}.{DATASET}.{TABLE}`"
         ).result(), None)
-        return row.last_date or datetime.date(2024, 1, 1)
+        return row.last_date
 
     def delete_date(self, dt: datetime.date):
         job = self.client.query(
