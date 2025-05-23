@@ -10,3 +10,4 @@ __pycache__/
 snapshots/
 transparentnost_scraper.log
 logger/
+gcloud_snapshots/

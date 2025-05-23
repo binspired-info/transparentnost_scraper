@@ -36,4 +36,4 @@ RUN mkdir -p /tmp/snapshots
 RUN mkdir -p /workspace/output
 
 # 8. Default command to run your scraper (remove gsutil copy)
-CMD ["python", "transparentnost_scraper_test.py"]
+CMD ["python", "transparentnost_scraper.py"]

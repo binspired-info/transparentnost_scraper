@@ -17,9 +17,9 @@ from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException
 from bq_handler import BQHandler
+from google.cloud import storage
 
 """ --- Configuration --- """
-# Determine production mode from environment (default: True in Cloud Run)
 PRODUCTION = os.getenv("PRODUCTION", "False").lower() == "true"
 HEADLESS = PRODUCTION
 SNAPSHOTS = True
@@ -30,7 +30,7 @@ if PRODUCTION:
     LOG_DIR = os.getenv("LOG_DIR", DOWNLOAD_DIR)
     LOG_FILE = os.path.join(LOG_DIR, "transparentnost_scraper.log")
     if SNAPSHOTS:
-        SNAPSHOT_DIR = os.getenv("SNAPSHOT_DIR", "/tmp/screenshots")
+        SNAPSHOT_DIR = os.getenv("SNAPSHOT_DIR", "/tmp/snapshots")
 else:
     # Local development: download into your OneDrive csvs folder
     MAIN_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -38,7 +38,7 @@ else:
     LOG_DIR = os.path.join(MAIN_DIR, "logger")
     LOG_FILE = os.path.join(LOG_DIR, "transparentnost_scraper.log")
     if SNAPSHOTS:
-        SNAPSHOT_DIR = os.path.join(MAIN_DIR, "screenshots")
+        SNAPSHOT_DIR = os.path.join(MAIN_DIR, "snapshots")
     CLEAN_DIR = False
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 if SNAPSHOTS:
@@ -68,6 +68,29 @@ logger = logging.getLogger(__name__)
 """ --- Timezone setup --- """
 tz = pytz.timezone('Europe/Zagreb')
 
+class GCSHandler:
+    def __init__(self, bucket_name=None):
+        self.bucket_name = bucket_name or os.getenv('OUTPUT_BUCKET', '').replace('gs://', '')
+        self.client = storage.Client(project="zagreb-viz")
+        self.bucket = self.client.bucket(self.bucket_name)
+        self.run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    def upload_directory(self, local_dir: str):
+        """Upload entire directory to GCS, maintaining folder structure."""
+        if not os.path.exists(local_dir):
+            logger.warning(f"Directory does not exist: {local_dir}")
+            return
+
+        for root, _, files in os.walk(local_dir):
+            for file in files:
+                local_path = os.path.join(root, file)
+                relative_path = os.path.relpath(local_path, local_dir)
+                blob_name = f"{self.run_id}/{relative_path}"
+                
+                blob = self.bucket.blob(blob_name)
+                blob.upload_from_filename(local_path)
+                logger.info(f"Uploaded {local_path} to gs://{self.bucket_name}/{blob_name}")
+
 class TransparentnostScraper():
     def __init__(self):
         """ --- Initial settings --- """
@@ -85,25 +108,37 @@ class TransparentnostScraper():
         # Create a unique subdirectory for each run (always local)
         if SNAPSHOTS:
             self.run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            self.screenshot_dir = os.path.join(SNAPSHOT_DIR, self.run_id)
-            os.makedirs(self.screenshot_dir, exist_ok=True)
+            self.snapshot_dir = os.path.join(SNAPSHOT_DIR, self.run_id)
+            os.makedirs(self.snapshot_dir, exist_ok=True)
             self.snapshot_counter = 1
+        
+        if PRODUCTION:
+            self.gcs = GCSHandler()
+    
+    def upload_snapshots(self):
+        """Upload all results to GCS."""
+        try:
+            if SNAPSHOTS and hasattr(self, 'snapshot_dir'):
+                self.gcs.upload_directory(self.snapshot_dir)
+            logger.info("All files uploaded to GCS successfully")
+        except Exception as e:
+            logger.error(f"Failed to upload to GCS: {e}")
+            raise
 
     def _take_snapshot(self, driver, label, current_date=None):
         """Take a screenshot with a numerated label and optional date. Always save locally."""
         time.sleep(0.5)
         if SNAPSHOTS:
-            date_str = current_date.strftime('%Y_%m_%d') if current_date else "nodate"
-            fname = f"{self.snapshot_counter:02d}_{label}_{date_str}_{int(time.time())}.png"
-            local_path = os.path.join(self.screenshot_dir, fname)
             try:
-                driver.save_screenshot(local_path)
-                logger.info(f"Snapshot saved: {local_path}")
+                date_str = current_date.strftime('%Y_%m_%d') if current_date else "nodate"
+                fname = f"{self.snapshot_counter:02d}_{label}_{date_str}.png"
+                path = os.path.join(self.snapshot_dir, fname)
+                
+                driver.save_screenshot(path)
+                logger.info(f"Snapshot saved: {fname}")
+                self.snapshot_counter += 1
             except Exception as e:
                 logger.error(f"Failed to save snapshot: {e}")
-            self.snapshot_counter += 1
-        else:
-            pass
 
     def _check_for_downloaded_dates(self):
         downloaded_files = glob.glob(os.path.join(DOWNLOAD_DIR, '*.csv'))
@@ -294,101 +329,111 @@ class TransparentnostScraper():
             os.rename(original, dest)
             return dest, newname
 
+        driver = None
+        try:
+            driver = _get_webdriver()
+            current_date = self.start_date
+            base_xpath = '/html/body/app-root/home-component/'
+            days_processed = 0
+            bq = BQHandler()
+            logger.info(" === Starting web scraping === ")
 
-        driver = _get_webdriver()
-        current_date = self.start_date
-        base_xpath = '/html/body/app-root/home-component/'
-        days_processed = 0
-        bq = BQHandler()
-        logger.info(" === Starting web scraping === ")
+            self._take_snapshot(driver, "after_open", None)
+            # Accept cookies
+            WebDriverWait(driver, 10).until(EC.element_to_be_clickable(
+                (By.XPATH, base_xpath + 'content/main/cookies/div/div[4]/div[4]/button')
+            )).click()
+            self._take_snapshot(driver, "after_cookies", current_date)
 
-        self._take_snapshot(driver, "after_open", None)
-        # Accept cookies
-        WebDriverWait(driver, 10).until(EC.element_to_be_clickable(
-            (By.XPATH, base_xpath + 'content/main/cookies/div/div[4]/div[4]/button')
-        )).click()
-        self._take_snapshot(driver, "after_cookies", current_date)
+            # Open filter panel
+            WebDriverWait(driver, 10).until(EC.element_to_be_clickable(
+                (By.XPATH, base_xpath+'content/main/isplate-details-component/section/div/div/filters/button')
+            )).click()
+            self._take_snapshot(driver, "after_filter_panel", current_date)
 
-        # Open filter panel
-        WebDriverWait(driver, 10).until(EC.element_to_be_clickable(
-            (By.XPATH, base_xpath+'content/main/isplate-details-component/section/div/div/filters/button')
-        )).click()
-        self._take_snapshot(driver, "after_filter_panel", current_date)
+            # Open date filter
+            WebDriverWait(driver, 10).until(EC.element_to_be_clickable(
+                (By.XPATH, base_xpath+'content/main/isplate-details-component/section/div/div/filters/div/div/div[3]/div[1]')
+            )).click()
+            self._take_snapshot(driver, "after_date_filter", current_date)
 
-        # Open date filter
-        WebDriverWait(driver, 10).until(EC.element_to_be_clickable(
-            (By.XPATH, base_xpath+'content/main/isplate-details-component/section/div/div/filters/div/div/div[3]/div[1]')
-        )).click()
-        self._take_snapshot(driver, "after_date_filter", current_date)
+            # Date filter paths
+            filter_base = base_xpath + 'content/main/isplate-details-component/section/div/div/filters/div/div/div[3]/div[2]/div/filter-input/'
+            from_xpath = filter_base + 'filter-input-value-type[1]/filter-date-picker/div/input'
+            to_xpath   = filter_base + 'filter-input-value-type[2]/filter-date-picker/div/input'
+            # Filter button path
+            filter_xpath = base_xpath + 'content/main/isplate-details-component/section/div/div/filters/button'
 
-        # Date filter paths
-        filter_base = base_xpath + 'content/main/isplate-details-component/section/div/div/filters/div/div/div[3]/div[2]/div/filter-input/'
-        from_xpath = filter_base + 'filter-input-value-type[1]/filter-date-picker/div/input'
-        to_xpath   = filter_base + 'filter-input-value-type[2]/filter-date-picker/div/input'
-        # Filter button path
-        filter_xpath = base_xpath + 'content/main/isplate-details-component/section/div/div/filters/button'
+            while current_date <= self.end_date:
+                logger.info(f"1) Curr. date: {current_date.strftime('%d.%m.%Y.')}| Wkday: {current_date.strftime('%A')} | Progress: {days_processed}/{self.days_to_scrape}")
 
-        while current_date <= self.end_date:
-            logger.info(f"1) Curr. date: {current_date.strftime('%d.%m.%Y.')}| Wkday: {current_date.strftime('%A')} | Progress: {days_processed}/{self.days_to_scrape}")
+                if False: # puni neovisno o tome što je skinuto
+                    if self.already_downloaded_dates and current_date <= self.already_downloaded_dates[-1]:
+                        logger.info(f"Skipping {current_date.date()} (already downloaded)")
+                        current_date += datetime.timedelta(days=1)
+                        continue
+                
+                # Set date filter
+                elem_from = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, from_xpath)))
+                elem_to   = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, to_xpath)))
+                elem_from.clear(); elem_to.clear()
+                elem_from.send_keys(current_date.strftime('%d.%m.%Y.'))
+                elem_to.send_keys(current_date.strftime('%d.%m.%Y.'))
+                self._take_snapshot(driver, "after_set_date", current_date)
 
-            if False: # puni neovisno o tome što je skinuto
-                if self.already_downloaded_dates and current_date <= self.already_downloaded_dates[-1]:
-                    logger.info(f"Skipping {current_date.date()} (already downloaded)")
-                    current_date += datetime.timedelta(days=1)
-                    continue
-            
-            # Set date filter
-            elem_from = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, from_xpath)))
-            elem_to   = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, to_xpath)))
-            elem_from.clear(); elem_to.clear()
-            elem_from.send_keys(current_date.strftime('%d.%m.%Y.'))
-            elem_to.send_keys(current_date.strftime('%d.%m.%Y.'))
-            self._take_snapshot(driver, "after_set_date", current_date)
-
-            if _date_filter_activated():
-                self._take_snapshot(driver, "after_filter_activated", current_date)
-                if _wait_for_table_or_content_date(current_date):
-                    self._take_snapshot(driver, "after_table_content", current_date)
-                    if _download_click():
-                        self._take_snapshot(driver, "after_download_click", current_date)
-                        if _download_success('isplate.csv', 60):
-                            try:
-                                final_csv, newname = _rename_csv()
-                                bq.load_csv(final_csv, current_date.date())
-                                logger.info(f"6) Loaded into BigQuery: {newname}")
-                            except Exception as e:
-                                self._take_snapshot(driver, "bq_load_error", current_date)
-                                logger.error(f"6) BQ load error for {current_date.date()}: {e}")
-                                alert_slack(f":red_circle: BQ load failed for {current_date.date()}\n```{traceback.format_exc()}```")
-                                raise Exception(f"Load failed for {current_date.date()}")
+                if _date_filter_activated():
+                    self._take_snapshot(driver, "after_filter_activated", current_date)
+                    if _wait_for_table_or_content_date(current_date):
+                        self._take_snapshot(driver, "after_table_content", current_date)
+                        if _download_click():
+                            self._take_snapshot(driver, "after_download_click", current_date)
+                            if _download_success('isplate.csv', 60):
+                                try:
+                                    final_csv, newname = _rename_csv()
+                                    bq.load_csv(final_csv, current_date.date())
+                                    logger.info(f"6) Loaded into BigQuery: {newname}")
+                                except Exception as e:
+                                    self._take_snapshot(driver, "bq_load_error", current_date)
+                                    logger.error(f"6) BQ load error for {current_date.date()}: {e}")
+                                    alert_slack(f":red_circle: BQ load failed for {current_date.date()}\n```{traceback.format_exc()}```")
+                                    raise Exception(f"Load failed for {current_date.date()}")
+                            else:
+                                self._take_snapshot(driver, "download_timeout", current_date)
+                                logger.error(f"5) Download timeout/Rename error for {current_date.date()}")
+                                alert_slack(f":red_circle: Download failed for {current_date.date()}")
+                                raise Exception(f"Download failed for {current_date.date()}")
                         else:
-                            self._take_snapshot(driver, "download_timeout", current_date)
-                            logger.error(f"5) Download timeout/Rename error for {current_date.date()}")
-                            alert_slack(f":red_circle: Download failed for {current_date.date()}")
-                            raise Exception(f"Download failed for {current_date.date()}")
+                            self._take_snapshot(driver, "download_not_available", current_date)
+                            logger.info(f"4) Download not available for: {current_date.date()}")
+                            alert_slack(f":red_circle: Scrape/download failed for {current_date.date()}\n```{traceback.format_exc()}```")
                     else:
-                        self._take_snapshot(driver, "download_not_available", current_date)
-                        logger.info(f"4) Download not available for: {current_date.date()}")
-                        alert_slack(f":red_circle: Scrape/download failed for {current_date.date()}\n```{traceback.format_exc()}```")
+                        self._take_snapshot(driver, "content_not_updated", current_date)
+                        logger.error(f"3a) No data or content not updated for {current_date.date()}")
+                        alert_slack(f":red_circle: Content not updated for {current_date.date()}")
                 else:
-                    self._take_snapshot(driver, "content_not_updated", current_date)
-                    logger.error(f"3a) No data or content not updated for {current_date.date()}")
-                    alert_slack(f":red_circle: Content not updated for {current_date.date()}")
-            else:
-                self._take_snapshot(driver, "filter_activation_failed", current_date)
-                logger.error(f"2) Date filter activation failed for {current_date.date()}")
-                alert_slack(f":red_circle: Filter failed for {current_date.date()}")
-                raise Exception(f"Filter failed for {current_date.date()}")
+                    self._take_snapshot(driver, "filter_activation_failed", current_date)
+                    logger.error(f"2) Date filter activation failed for {current_date.date()}")
+                    alert_slack(f":red_circle: Filter failed for {current_date.date()}")
+                    raise Exception(f"Filter failed for {current_date.date()}")
 
-            # Re-open filter for next iteration
-            WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, filter_xpath))).click()
-            self._take_snapshot(driver, "after_reopen_filter", current_date)
-            current_date += datetime.timedelta(days=1)
-            days_processed += 1
-
-        self._take_snapshot(driver, "final", None)
-        driver.quit()
-        logger.info("--- Web scraping completed! ---")
+                # Re-open filter for next iteration
+                WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, filter_xpath))).click()
+                self._take_snapshot(driver, "after_reopen_filter", current_date)
+                current_date += datetime.timedelta(days=1)
+                days_processed += 1
+        
+        except Exception as e:
+            logger.error(f"Scraper failed: {e}")
+            if driver:
+                self._take_snapshot(driver, "error")
+            raise
+        finally:
+            if driver:
+                self._take_snapshot(driver, "final")
+                if SNAPSHOTS and PRODUCTION:
+                    self.upload_snapshots()
+                driver.quit()
+                logger.info("--- Web scraping completed! ---")
 
 if __name__ == '__main__':
     exe_start = datetime.datetime.now(tz)

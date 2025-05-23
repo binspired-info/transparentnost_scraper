@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import subprocess
 import sys
+import os
 
 def run_command(cmd):
     """Run a shell command and exit on failure."""
@@ -9,6 +10,30 @@ def run_command(cmd):
     if result.returncode != 0:
         print(f"\n✖ Command failed with exit code {result.returncode}: {cmd}", file=sys.stderr)
         sys.exit(result.returncode)
+
+def download_results(run_id=None, download_dir=None):
+    """
+    Download results from GCS bucket.
+    Args:
+        run_id (str, optional): Specific run ID to download. If None, downloads latest.
+        download_dir (str, optional): Directory to download files to. Defaults to current directory.
+    """
+    # Create download directory if it doesn't exist
+    if download_dir:
+        os.makedirs(download_dir, exist_ok=True)
+        dest_path = download_dir
+    else:
+        dest_path = "."
+
+    if run_id:
+        # Download specific run
+        run_command(f'gsutil -m cp -r gs://zagreb-viz-snapshots/{run_id}/* "{dest_path}"')
+    else:
+        # Download latest run (assuming runs are date-formatted)
+        run_command(f"""
+            latest=$(gsutil ls gs://zagreb-viz-snapshots/ | sort | tail -n 1)
+            gsutil -m cp -r $latest* "{dest_path}"
+        """)
 
 def main():
     # 1) Build & push the container image
@@ -32,4 +57,8 @@ def main():
     print("\n✅ All steps completed successfully.")
 
 if __name__ == "__main__":
-    main()
+    #main()
+
+    if True:
+        download_dir = "C:\\Users\\grand\\OneDrive\\ZagrebVIz\\transparentnost_scraper\\gcloud_snapshots"
+        download_results(run_id="20250521_222211", download_dir=download_dir)  # Example run_id
