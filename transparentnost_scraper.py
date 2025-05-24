@@ -100,7 +100,8 @@ class TransparentnostScraper():
         #self.already_downloaded_dates = self._check_for_downloaded_dates()
         # Get the last date from BigQuery (a datetime.date)
         last = BQHandler().get_last_date()
-        self.last_date_tbl = last.date() if last else datetime.datetime(2024, 1, 1)
+        self.last_date_tbl = last.date() if last else datetime.date(2024, 1, 1)
+        logger.info(f"Last date in BigQuery: {self.last_date_tbl}")
 
         if SNAPSHOTS: # Create a unique subdirectory for each run (always local)
             self.run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -122,9 +123,9 @@ class TransparentnostScraper():
 
     def _take_snapshot(self, driver, label, current_date=None):
         """Take a screenshot with a numerated label and optional date. Always save locally."""
-        time.sleep(0.5)
         if SNAPSHOTS:
             try:
+                time.sleep(0.5)
                 date_str = current_date.strftime('%Y_%m_%d') if current_date else "nodate"
                 fname = f"{self.snapshot_counter:02d}_{label}_{date_str}.png"
                 path = os.path.join(self.snapshot_dir, fname)
@@ -163,12 +164,12 @@ class TransparentnostScraper():
         else:
             # If our last loaded date is before 2024, start at Jan 2, 2024
             if self.last_date_tbl.year < 2024:
-                self.start_date = datetime.datetime(2024, 1, 2)
+                self.start_date = datetime.date(2024, 1, 2)
             else:
                 # Next day after last_date_tbl
                 self.start_date = self.last_date_tbl + datetime.timedelta(days=1)
             # Use current time as the end of the interval
-            self.end_date = datetime.datetime.now().date()
+            self.end_date = datetime.date.today()
         self.days_to_scrape = (self.end_date - self.start_date).days
         logger.info(f"--- Scraping from dates {self.start_date} to {self.end_date} ({self.days_to_scrape} days) ---")
 
@@ -345,7 +346,7 @@ class TransparentnostScraper():
 
                 if False: # puni neovisno o tome što je skinuto
                     if self.already_downloaded_dates and current_date <= self.already_downloaded_dates[-1]:
-                        logger.info(f"Skipping {current_date.date()} (already downloaded)")
+                        logger.info(f"Skipping {current_date} (already downloaded)")
                         current_date += datetime.timedelta(days=1)
                         continue
                 
@@ -369,31 +370,31 @@ class TransparentnostScraper():
                             if _download_success('isplate.csv', 60):
                                 try:
                                     final_csv, newname = _rename_csv()
-                                    bq.load_csv(final_csv, current_date.date())
+                                    bq.load_csv(final_csv, current_date)
                                     logger.info(f"6) Loaded into BigQuery: {newname}")
                                 except Exception as e:
                                     self._take_snapshot(driver, "bq_load_error", current_date)
-                                    logger.error(f"6) BQ load error for {current_date.date()}: {e}")
-                                    alert_slack(f":red_circle: BQ load failed for {current_date.date()}\n```{traceback.format_exc()}```")
-                                    raise Exception(f"Load failed for {current_date.date()}")
+                                    logger.error(f"6) BQ load error for {current_date}: {e}")
+                                    alert_slack(f":red_circle: BQ load failed for {current_date}\n```{traceback.format_exc()}```")
+                                    raise Exception(f"Load failed for {current_date}")
                             else:
                                 self._take_snapshot(driver, "download_timeout", current_date)
-                                logger.error(f"5) Download timeout/Rename error for {current_date.date()}")
-                                alert_slack(f":red_circle: Download failed for {current_date.date()}")
-                                raise Exception(f"Download failed for {current_date.date()}")
+                                logger.error(f"5) Download timeout/Rename error for {current_date}")
+                                alert_slack(f":red_circle: Download failed for {current_date}")
+                                raise Exception(f"Download failed for {current_date}")
                         else:
                             self._take_snapshot(driver, "download_not_available", current_date)
-                            logger.info(f"4) Download not available for: {current_date.date()}")
-                            alert_slack(f":red_circle: Scrape/download failed for {current_date.date()}\n```{traceback.format_exc()}```")
+                            logger.info(f"4) Download not available for: {current_date}")
+                            alert_slack(f":red_circle: Scrape/download failed for {current_date}\n```{traceback.format_exc()}```")
                     else:
                         self._take_snapshot(driver, "content_not_updated", current_date)
-                        logger.error(f"3a) No data or content not updated for {current_date.date()}")
-                        alert_slack(f":red_circle: Content not updated for {current_date.date()}")
+                        logger.error(f"3a) No data or content not updated for {current_date}")
+                        alert_slack(f":red_circle: Content not updated for {current_date}")
                 else:
                     self._take_snapshot(driver, "filter_activation_failed", current_date)
-                    logger.error(f"2) Date filter activation failed for {current_date.date()}")
-                    alert_slack(f":red_circle: Filter failed for {current_date.date()}")
-                    raise Exception(f"Filter failed for {current_date.date()}")
+                    logger.error(f"2) Date filter activation failed for {current_date}")
+                    alert_slack(f":red_circle: Filter failed for {current_date}")
+                    raise Exception(f"Filter failed for {current_date}")
 
                 # Re-open filter for next iteration
                 WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, filter_xpath))).click()
@@ -420,9 +421,9 @@ if __name__ == '__main__':
         app = TransparentnostScraper()
         if PRODUCTION:
             date_interval = None
-            #date_interval = (datetime.datetime(2024, 3, 24), datetime.datetime(2024, 4, 3))
+            #date_interval = (datetime.date(2024, 3, 24), datetime.date(2024, 4, 3))
         else:  # For local testing, set a specific date range
-            date_interval = (datetime.datetime(2024, 3, 27), datetime.datetime(2024, 3, 27))
+            date_interval = (datetime.date(2024, 3, 27), datetime.date(2024, 3, 27))
         app.set_dates(date_interval=date_interval)
         app.webscrape()
     except Exception:
