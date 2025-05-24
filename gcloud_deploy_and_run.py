@@ -68,7 +68,7 @@ def main():
     notify_sound()
 
 if __name__ == "__main__":
-    if False:
+    if True:
         main()
     else:
         download_dir = "C:\\Users\\grand\\OneDrive\\ZagrebVIz\\transparentnost_scraper\\gcloud_snapshots"

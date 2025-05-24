@@ -419,7 +419,8 @@ if __name__ == '__main__':
     try:
         app = TransparentnostScraper()
         if PRODUCTION:
-            date_interval = (datetime.datetime(2024, 3, 24), datetime.datetime(2024, 4, 3))
+            date_interval = None
+            #date_interval = (datetime.datetime(2024, 3, 24), datetime.datetime(2024, 4, 3))
         else:  # For local testing, set a specific date range
             date_interval = (datetime.datetime(2024, 3, 27), datetime.datetime(2024, 3, 27))
         app.set_dates(date_interval=date_interval)
